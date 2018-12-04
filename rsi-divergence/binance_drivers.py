@@ -3,7 +3,7 @@ import json, requests
 def get_price_history(interval, symbol):
     closing_prices = []
 
-    payload = {"interval": interval, "symbol": symbol, "limit": 115}
+    payload = {"interval": interval, "symbol": symbol, "limit": 150}
 
     r = requests.get("https://api.binance.com/api/v1/klines", params=payload)
 
@@ -14,28 +14,41 @@ def get_price_history(interval, symbol):
     return closing_prices 
 
 
-def find_lows(closing_prices):
-    lows = []
-    for i in range(len(closing_prices)):
-        # Assumes closing_prices array len is greater than 1
+def find_lows(closing_prices, rsi_array):
+    price_lows = []
+    rsi_lows = []
+    # Price lows
+    for i in range(14, len(closing_prices)):
+        
         if i == 0 and closing_prices[i] <= closing_prices[i + 1]:
-            lows.append(closing_prices[i]) 
+            price_lows.append(closing_prices[i]) 
         elif i == len(closing_prices) - 1 and closing_prices[i] <= closing_prices[i - 1]:
-            lows.append(closing_prices[i])
+            price_lows.append(closing_prices[i])
         elif closing_prices[i - 1] >= closing_prices[i] <= closing_prices[i + 1]:
-            lows.append(closing_prices[i])
+            price_lows.append(closing_prices[i])
         else:
-            lows.append(-1)
+            price_lows.append(-1)
+    
+    # RSI lows
+    for i in range(len(rsi_array)):
+        if i == 0 and rsi_array[i] <= rsi_array[i + 1]:
+            rsi_lows.append(rsi_array[i]) 
+        elif i == len(rsi_array) - 1 and rsi_array[i] <= rsi_array[i - 1]:
+            rsi_lows.append(rsi_array[i])
+        elif rsi_array[i - 1] >= rsi_array[i] <= rsi_array[i + 1]:
+            rsi_lows.append(rsi_array[i])
+        else:
+            rsi_lows.append(-1)
 
-    return lows
+    return (price_lows, rsi_lows)
 
 def calculate_rsi(closing_prices):
-    # init_avg_gain = 0
-    # init_avg_loss = 0
+    
     total_gains = 0
     total_losses = 0
     a = 1 / 14
     rsi = []
+
     # Initial EMA (SMA)
     for i in range(1, 15):
 
@@ -44,10 +57,12 @@ def calculate_rsi(closing_prices):
             total_gains += change
         else:
             total_losses += -change
+    
     prev_gain_ema = total_gains / 14
     prev_loss_ema = total_losses / 14
     rs = prev_gain_ema / prev_loss_ema
     rsi.append(100 - (100 / (1 + rs)))
+    
     for i in range(15, len(closing_prices)):
         change = float(closing_prices[i]) - float(closing_prices[i - 1])
 
@@ -69,5 +84,8 @@ def calculate_rsi(closing_prices):
 
     return rsi
 
+closing_prices = get_price_history("15m", "BTCUSDT")
 
-print(calculate_rsi(get_price_history("15m", "BTCUSDT")))
+lows = find_lows(closing_prices, calculate_rsi(closing_prices))
+print(lows[0])
+print(lows[1])
