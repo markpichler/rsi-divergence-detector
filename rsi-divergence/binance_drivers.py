@@ -1,15 +1,15 @@
-import json, requests
+import json, math, requests
 
 def get_price_history(interval, symbol):
     closing_prices = []
 
-    payload = {"interval": interval, "symbol": symbol, "limit": 150}
+    payload = {"interval": interval, "symbol": symbol, "limit": 115}
 
     r = requests.get("https://api.binance.com/api/v1/klines", params=payload)
 
     for candle in json.loads(r.text):
         # TODO: See if json.loads() can return numbers instead of strings
-        closing_prices.append(candle[4])
+        closing_prices.append(float(candle[4]))
     
     return closing_prices 
 
@@ -84,8 +84,24 @@ def calculate_rsi(closing_prices):
 
     return rsi
 
+
+
+def find_divergence(price_lows, rsi_lows):
+    min_price = math.inf
+    min_rsi = 0
+
+    for i in range(len(price_lows)):
+    
+        if -1 < price_lows[i] < min_price and -1 < rsi_lows[i] < 30:
+            min_price = price_lows[i]
+            min_rsi = rsi_lows[i]
+
+    return (min_price, min_rsi) 
+
+
+
+
 closing_prices = get_price_history("15m", "BTCUSDT")
 
 lows = find_lows(closing_prices, calculate_rsi(closing_prices))
-print(lows[0])
-print(lows[1])
+print(find_divergence(lows[0], lows[1]))
