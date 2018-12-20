@@ -83,7 +83,7 @@ def calculate_rsi(closing_prices):
         rsi.append(100 - (100 / (1 + rs)))
 
     return rsi
-
+    
 
 
 def find_divergence(price_lows, rsi_lows):
@@ -91,7 +91,7 @@ def find_divergence(price_lows, rsi_lows):
     min_rsi = 0
 
     for i in range(len(price_lows)):
-    
+
         if -1 < price_lows[i] < min_price and -1 < rsi_lows[i] < 30:
             min_price = price_lows[i]
             min_rsi = rsi_lows[i]
