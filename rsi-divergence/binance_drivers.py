@@ -1,31 +1,99 @@
 import json, math, requests
 
-def get_price_history(interval, symbol):
-    closing_prices = []
+class Asset:
+    """Gathers/manages data to detect RSI divergence for unique trading pairs.
 
-    payload = {"interval": interval, "symbol": symbol, "limit": 115}
-
-    r = requests.get("https://api.binance.com/api/v1/klines", params=payload)
-
-    for candle in json.loads(r.text):
-        # TODO: See if json.loads() can return numbers instead of strings
-        closing_prices.append(float(candle[4]))
+    Attributes:
+        interval: Desired time frame (string).
+        symbol: Desired trading pair (string).
+    """
     
-    return closing_prices 
+    a = 1 / 14
 
+    def __init__(self, interval, symbol):
+        """Collect initial short term price and RSI history."""
 
-def find_lows(closing_prices, rsi_array):
+        self.rsi = []
+        self.prices = []
+        self.prev_gain_ema = 0
+        self.prev_loss_ema = 0
+
+        r = requests.get("https://api.binance.com/api/v1/klines", 
+                         params={
+                             "interval": interval, 
+                             "symbol": symbol, 
+                             "limit": 165
+                         })
+        for candle in json.loads(r.text):
+            self.prices.append(float(candle[4]))
+
+        # Initial EMA (SMA)
+        for i in range(1, 15):
+            change = self.prices[i] - self.prices[i - 1]
+            if change > 0:
+                self.prev_gain_ema += change
+            else:
+                self.prev_loss_ema += -change
+        
+        self.rsi.append(
+            100 - (100 / (1 + self.prev_gain_ema / self.prev_loss_ema))
+        )
+        
+        for i in range(15, len(self.prices)):
+            change = self.prices[i] - self.prices[i - 1]
+
+            if change > 0:
+                u = change
+                d = 0
+            else:
+                u = 0
+                d = -change
+
+            cur_gain_ema = a * u + (1 - a) * self.prev_gain_ema
+            cur_loss_ema = a * d + (1 - a) * self.prev_loss_ema
+
+            self.prev_gain_ema = cur_gain_ema 
+            self.prev_loss_ema = cur_loss_ema
+
+            self.rsi.append(100 - (100 / (1 + cur_gain_ema / cur_loss_ema)))
+    
+    def calculate_rsi(self):
+        """Calculate and append current RSI.
+        
+        This method should be called once at the start of every new time 
+        interval. 
+        """
+
+        change = self.prices[-1] - self.prices[-2]
+
+        if change > 0:
+            u = change
+            d = 0
+        else:
+            u = 0
+            d = -change
+
+        cur_gain_ema = a * u + (1 - a) * self.prev_gain_ema
+        cur_loss_ema = a * d + (1 - a) * self.prev_loss_ema
+
+        self.prev_gain_ema = cur_gain_ema 
+        self.prev_loss_ema = cur_loss_ema
+        
+        self.rsi.append(100 - (100 / (1 + cur_gain_ema / cur_loss_ema)))
+       
+      
+def find_lows(prices, rsi_array):
     price_lows = []
     rsi_lows = []
     # Price lows
-    for i in range(14, len(closing_prices)):
+    for i in range(14, len(self.prices)):
         
-        if i == 0 and closing_prices[i] <= closing_prices[i + 1]:
-            price_lows.append(closing_prices[i]) 
-        elif i == len(closing_prices) - 1 and closing_prices[i] <= closing_prices[i - 1]:
-            price_lows.append(closing_prices[i])
-        elif closing_prices[i - 1] >= closing_prices[i] <= closing_prices[i + 1]:
-            price_lows.append(closing_prices[i])
+        if i == 0 and self.prices[i] <= self.prices[i + 1]:
+            price_lows.append(self.prices[i]) 
+        elif i == len(self.prices) - 1 and self.prices[i] <= self.prices[i - 1]:
+            price_lows.append(self.prices[i])
+        elif self.prices[i - 1] >= self.prices[i] <= self.prices[i + 1]:
+            price_lows.append(self.prices[i])
         else:
             price_lows.append(-1)
     
@@ -41,49 +109,6 @@ def find_lows(closing_prices, rsi_array):
             rsi_lows.append(-1)
 
     return (price_lows, rsi_lows)
-
-def calculate_rsi(closing_prices):
-    
-    total_gains = 0
-    total_losses = 0
-    a = 1 / 14
-    rsi = []
-
-    # Initial EMA (SMA)
-    for i in range(1, 15):
-
-        change = float(closing_prices[i]) - float(closing_prices[i - 1])
-        if change > 0:
-            total_gains += change
-        else:
-            total_losses += -change
-    
-    prev_gain_ema = total_gains / 14
-    prev_loss_ema = total_losses / 14
-    rs = prev_gain_ema / prev_loss_ema
-    rsi.append(100 - (100 / (1 + rs)))
-    
-    for i in range(15, len(closing_prices)):
-        change = float(closing_prices[i]) - float(closing_prices[i - 1])
-
-        if change > 0:
-            u = change
-            d = 0
-        else:
-            u = 0
-            d = -change
-
-        cur_gain_ema = a * u + (1 - a) * prev_gain_ema
-        cur_loss_ema = a * d + (1 - a) * prev_loss_ema
-
-        prev_gain_ema = cur_gain_ema 
-        prev_loss_ema = cur_loss_ema
-
-        rs = cur_gain_ema / cur_loss_ema
-        rsi.append(100 - (100 / (1 + rs)))
-
-    return rsi
-    
 
 
 def find_divergence(price_lows, rsi_lows):
@@ -101,7 +126,12 @@ def find_divergence(price_lows, rsi_lows):
 
 
 
-closing_prices = get_price_history("15m", "BTCUSDT")
+bitcoin_usdt = Asset("15m", "BTCUSDT")
 
+print(bitcoin_usdt.closing_prices)
+print(bitcoin_usdt.rsi)
+
+"""
 lows = find_lows(closing_prices, calculate_rsi(closing_prices))
 print(find_divergence(lows[0], lows[1]))
+"""
